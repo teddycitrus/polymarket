@@ -26,7 +26,7 @@ function renderCards(c) {
 
 function renderTrend(history) {
   const el = document.getElementById("trend");
-  if (!history.length) { el.innerHTML = '<div class="empty">no resolved markets yet &mdash; edge is unknowable until markets settle</div>'; return; }
+  if (!history.length) { el.innerHTML = '<div class="empty">no resolved markets yet; edge is unknowable until markets settle</div>'; return; }
   let sum = 0;
   const pts = history.map((h, i) => { sum += (h.market_brier - h.model_brier); return sum / (i + 1); });
   const W = 920, H = 90, pad = 6;
@@ -44,7 +44,7 @@ function renderTrend(history) {
 
 function renderMarkets(markets) {
   const el = document.getElementById("markets");
-  if (!markets.length) { el.innerHTML = '<div class="empty">no forecasts yet &mdash; run the forecast endpoint</div>'; return; }
+  if (!markets.length) { el.innerHTML = '<div class="empty">no forecasts yet; run the forecast endpoint</div>'; return; }
   const rows = markets.map(m => {
     const edge = m.edge;
     const big = (edge !== null && edge !== undefined && Math.abs(edge) >= 0.10) ? '<span class="pill">BIG GAP</span>' : "";

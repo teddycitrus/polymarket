@@ -112,6 +112,17 @@ class Conn:
         self._client.close()
 
 
+def _normalize_scheme(url: str) -> str:
+    # libsql-client's sync client opens a WebSocket for libsql://, wss://, and
+    # ws:// URLs. WebSocket transport is unreliable in short-lived serverless
+    # functions, so force the stateless HTTP (Hrana-over-HTTP) transport, which
+    # is what Turso's libsql:// URL points at anyway.
+    for ws_scheme, http_scheme in (("libsql://", "https://"), ("wss://", "https://"), ("ws://", "http://")):
+        if url.startswith(ws_scheme):
+            return http_scheme + url[len(ws_scheme):]
+    return url
+
+
 def _resolve_url(db_path: str | Path | None) -> tuple[str, str | None]:
     turso = os.environ.get("TURSO_DATABASE_URL")
     if turso:
@@ -121,15 +132,25 @@ def _resolve_url(db_path: str | Path | None) -> tuple[str, str | None]:
     return "file:" + str(path).replace("\\", "/"), None
 
 
-def connect(db_path: str | Path | None = None) -> Conn:
-    url, auth = _resolve_url(db_path)
-    if auth:
-        client = libsql_client.create_client_sync(url=url, auth_token=auth)
+def connect_libsql(url: str, auth_token: str | None = None) -> Conn:
+    """Connect to an explicit libSQL URL (file:, https://, libsql://, ...).
+
+    Used directly when you need two connections at once (e.g. migrating a local
+    file to Turso) rather than the env-driven default from connect().
+    """
+    url = _normalize_scheme(url)
+    if auth_token:
+        client = libsql_client.create_client_sync(url=url, auth_token=auth_token)
     else:
         client = libsql_client.create_client_sync(url=url)
     conn = Conn(client)
     conn.executescript(_SCHEMA)
     return conn
+
+
+def connect(db_path: str | Path | None = None) -> Conn:
+    url, auth = _resolve_url(db_path)
+    return connect_libsql(url, auth)
 
 
 def upsert_market(conn: Conn, market) -> None:

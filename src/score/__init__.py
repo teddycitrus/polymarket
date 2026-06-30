@@ -2,6 +2,7 @@ from .brier import BrierSummary, brier, summarize
 from .db import (
     DEFAULT_DB,
     connect,
+    connect_libsql,
     count_markets,
     count_resolved,
     insert_forecast,
@@ -16,6 +17,7 @@ from .db import (
 __all__ = [
     "DEFAULT_DB",
     "connect",
+    "connect_libsql",
     "count_markets",
     "count_resolved",
     "insert_forecast",
