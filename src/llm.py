@@ -45,6 +45,11 @@ def _get_client() -> anthropic.Anthropic:
 
 
 def _resolve_model(model: str | None) -> str:
+    # ANTHROPIC_MODEL env wins over everything, so if the default model id is
+    # ever rejected by the API you can fix it without a code change/redeploy.
+    env_model = os.environ.get("ANTHROPIC_MODEL")
+    if env_model:
+        return _MODEL_ALIASES.get(env_model, env_model)
     model = model or DEFAULT_MODEL
     return _MODEL_ALIASES.get(model, model)
 

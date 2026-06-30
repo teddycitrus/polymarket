@@ -4,7 +4,7 @@
     "api/forecast.py": {
       "runtime": "@vercel/python@4.8.0",
       "memory": 1024,
-      "maxDuration": 300,
+      "maxDuration": 60,
       "includeFiles": "src/**"
     },
     "api/dashboard.py": {

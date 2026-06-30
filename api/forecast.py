@@ -22,6 +22,11 @@ from http.server import BaseHTTPRequestHandler
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
+# Hard cap on markets per request. Each takes ~2 min, so this must stay small
+# given the function's maxDuration. Raise FORECAST_MAX_LIMIT only if you've also
+# raised maxDuration in vercel.json (needs Vercel Pro for >60s).
+MAX_LIMIT = int(os.environ.get("FORECAST_MAX_LIMIT", "2"))
+
 
 def _authorized(headers) -> bool:
     expected = os.environ.get("FORECAST_API_TOKEN")
@@ -73,7 +78,10 @@ class handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}") if length else {}
-            limit = int(body.get("limit", 3))
+            # Clamp to a small batch: each market is ~2 min, and the function has
+            # a hard duration cap. MAX_LIMIT keeps a single request from timing
+            # out or running up an unexpected Anthropic bill.
+            limit = max(1, min(int(body.get("limit", 1)), MAX_LIMIT))
             low = float(body.get("low", 0.10))
             high = float(body.get("high", 0.90))
         except (ValueError, json.JSONDecodeError) as e:
