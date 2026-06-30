@@ -1,0 +1,17 @@
+========================================================================
+ POLYMARKET MORNING BOARD - Tue 2026-06-30 09:30
+========================================================================
+ Top 2 open markets by model/crowd disagreement:
+
+     EDGE  MODEL  CROWD  MARKET
+   ------------------------------------------------------------------
+      -9p     5%    14%  Will the U.S. invade Iran before 2027?
+      -2p    19%    20%  Will Gavin Newsom win the 2028 Democratic 
+
+ Biggest gap rationale (Will the U.S. invade Iran before 2027?):
+   A ceasefire and preliminary deal framework are in place as of late June 2026, the trajectory is diplomatic rather than escalatory, and the resolution bar (territorial control) far exceeds anything the U.S. has done or planned in this conflict, making a ground invasion before year-end very unlikely.
+
+------------------------------------------------------------------------
+ Tracked: 2 markets | resolved: 0 | scored forecasts: 0
+ Net edge: n/a (no markets resolved yet -- edge is unknowable until they settle)
+========================================================================

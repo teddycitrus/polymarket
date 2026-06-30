@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/forecast.py": {
+      "runtime": "@vercel/python@4.8.0",
+      "memory": 1024,
+      "maxDuration": 300,
+      "includeFiles": "src/**"
+    },
+    "api/dashboard.py": {
+      "runtime": "@vercel/python@4.8.0",
+      "memory": 512,
+      "maxDuration": 15,
+      "includeFiles": "src/**"
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
+}
