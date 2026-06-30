@@ -45,3 +45,50 @@ Done. Forecasted 1/1 markets (0 failed).
 ========================================================================
 
 Digest written: C:\Users\johnm\coding\polymarket\data\digests\2026-06-30.txt
+
+########## NIGHTLY RUN 2026-06-30T18:14:36.961633 ##########
+
+===== [18:14:36] resolve-markets =====
+Unresolved markets with forecasts: 2
+  559652: still open (Will Gavin Newsom win the 2028 Democratic presiden)
+  665374: still open (Will the U.S. invade Iran before 2027?)
+
+Done. Newly resolved: 0 | still open: 2
+
+===== [18:14:38] batch-forecasts =====
+Fetching active political markets from Gamma...
+Pool: 200 political markets | in band (0.1-0.9): 21 | forecasting: 1
+
+[1/1] Will the U.S. invade Iran before 2027?  (crowd 0.14, vol 39,075,072)
+
+=== [1/1] Will the U.S. invade Iran before 2027? ===
+  crowd YES probability:  14.5%
+  retrieving up to 5 news items...
+  got 5 news items
+  running 3x ensemble (sonnet)...
+    run 1:   7.0%  [medium]
+    run 2:   4.0%  [medium]
+    run 3:   5.0%  [medium]
+  -> stored id=5 | your 0.05333333333333334 vs crowd 0.145 | edge -9.2 pts
+
+Done. Forecasted 1/1 markets (0 failed).
+
+========================================================================
+ POLYMARKET MORNING BOARD - Tue 2026-06-30 18:16
+========================================================================
+ Top 2 open markets by model/crowd disagreement:
+
+     EDGE  MODEL  CROWD  MARKET
+   ------------------------------------------------------------------
+      -9p     5%    14%  Will the U.S. invade Iran before 2027?
+      -2p    19%    20%  Will Gavin Newsom win the 2028 Democratic 
+
+ Biggest gap rationale (Will the U.S. invade Iran before 2027?):
+   Despite an active U.S.-Iran air war (Operation Epic Fury) earlier in 2026, the Islamabad Memorandum ceasefire signed June 17 and ongoing diplomacy make a ground invasion aimed at territorial control highly unlikely before year-end, though the fragile ceasefire and ongoing retaliatory strikes leave a small residual probability.
+
+------------------------------------------------------------------------
+ Tracked: 2 markets | resolved: 0 | scored forecasts: 0
+ Net edge: n/a (no markets resolved yet -- edge is unknowable until they settle)
+========================================================================
+
+Digest written: C:\Users\johnm\coding\polymarket\data\digests\2026-06-30.txt

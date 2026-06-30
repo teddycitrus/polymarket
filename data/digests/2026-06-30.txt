@@ -1,5 +1,5 @@
 ========================================================================
- POLYMARKET MORNING BOARD - Tue 2026-06-30 09:30
+ POLYMARKET MORNING BOARD - Tue 2026-06-30 18:16
 ========================================================================
  Top 2 open markets by model/crowd disagreement:
 
@@ -9,7 +9,7 @@
       -2p    19%    20%  Will Gavin Newsom win the 2028 Democratic 
 
  Biggest gap rationale (Will the U.S. invade Iran before 2027?):
-   A ceasefire and preliminary deal framework are in place as of late June 2026, the trajectory is diplomatic rather than escalatory, and the resolution bar (territorial control) far exceeds anything the U.S. has done or planned in this conflict, making a ground invasion before year-end very unlikely.
+   Despite an active U.S.-Iran air war (Operation Epic Fury) earlier in 2026, the Islamabad Memorandum ceasefire signed June 17 and ongoing diplomacy make a ground invasion aimed at territorial control highly unlikely before year-end, though the fragile ceasefire and ongoing retaliatory strikes leave a small residual probability.
 
 ------------------------------------------------------------------------
  Tracked: 2 markets | resolved: 0 | scored forecasts: 0
