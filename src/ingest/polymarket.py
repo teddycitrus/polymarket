@@ -11,6 +11,7 @@ Docs:       https://docs.polymarket.com
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
@@ -19,6 +20,17 @@ from typing import Any, Iterator
 GAMMA_BASE = "https://gamma-api.polymarket.com"
 CLOB_BASE = "https://clob.polymarket.com"
 USER_AGENT = "polymarket-forecaster/0.1 (research; paper-trading only)"
+
+# Cap upstream response bodies so a compromised/misbehaving API can't exhaust
+# memory. Gamma/CLOB payloads are small; this is generous headroom.
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+
+# Identifier whitelists. Gamma market ids are numeric and slugs/token ids use a
+# constrained charset; validating before interpolating into a URL prevents path
+# traversal and request-splitting (SSRF) via crafted identifiers.
+_MARKET_ID_RE = re.compile(r"^[0-9]{1,32}$")
+_SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,191})$")
+_TOKEN_ID_RE = re.compile(r"^[0-9]{1,80}$")
 
 
 @dataclass
@@ -66,12 +78,21 @@ class Market:
         return labels == {"yes", "no"}
 
 
+def _read_json(resp: Any) -> Any:
+    # Read at most MAX_RESPONSE_BYTES + 1 so we can detect (and reject) an
+    # oversized body rather than buffering it unbounded.
+    raw = resp.read(MAX_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise ValueError("upstream response exceeds size limit")
+    return json.loads(raw.decode("utf-8"))
+
+
 def _get(path: str, params: dict[str, Any]) -> Any:
     query = urllib.parse.urlencode(params, doseq=True)
     url = f"{GAMMA_BASE}{path}?{query}"
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+        return _read_json(resp)
 
 
 def _parse_json_list(raw: Any) -> list:
@@ -185,7 +206,9 @@ def fetch_political_markets(
 
 
 def fetch_market_by_slug(slug: str) -> Market | None:
-    """Fetch a single market by its slug. Returns None if not found."""
+    """Fetch a single market by its slug. Returns None if not found or invalid."""
+    if not isinstance(slug, str) or not _SLUG_RE.match(slug):
+        return None
     raw = _get("/markets", {"slug": slug, "limit": 1})
     if not raw:
         return None
@@ -197,9 +220,13 @@ def fetch_market_by_id(market_id: str) -> Market | None:
 
     Uses the direct /markets/<id> path, which (unlike the filtered list query)
     returns the market regardless of closed status -- essential for resolution.
+    The id is validated as numeric before interpolation to prevent path
+    traversal / request-splitting into the upstream URL.
     """
+    if not isinstance(market_id, str) or not _MARKET_ID_RE.match(market_id):
+        return None
     try:
-        raw = _get(f"/markets/{market_id}", {})
+        raw = _get(f"/markets/{urllib.parse.quote(market_id, safe='')}", {})
     except urllib.error.HTTPError:
         return None
     if not isinstance(raw, dict) or not raw:
@@ -233,7 +260,7 @@ def _clob_get(path: str, params: dict[str, Any]) -> Any:
     url = f"{CLOB_BASE}{path}?{query}"
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+        return _read_json(resp)
 
 
 def fetch_clob_midpoint(token_id: str) -> float | None:
@@ -241,6 +268,8 @@ def fetch_clob_midpoint(token_id: str) -> float | None:
 
     This is the real-time crowd probability, fresher than the Gamma snapshot.
     """
+    if not isinstance(token_id, str) or not _TOKEN_ID_RE.match(token_id):
+        return None
     try:
         data = _clob_get("/midpoint", {"token_id": token_id})
     except urllib.error.HTTPError:
@@ -251,6 +280,8 @@ def fetch_clob_midpoint(token_id: str) -> float | None:
 
 def fetch_clob_book(token_id: str) -> dict | None:
     """Full order book for a CLOB token: {'bids': [...], 'asks': [...]}."""
+    if not isinstance(token_id, str) or not _TOKEN_ID_RE.match(token_id):
+        return None
     try:
         return _clob_get("/book", {"token_id": token_id})
     except urllib.error.HTTPError:

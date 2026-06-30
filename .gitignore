@@ -1,2 +1,26 @@
-.vercel
+# Secrets and local environment
 .env
+.env.*
+*.env
+!.env.example
+vtoken.txt
+
+# Vercel
+.vercel
+
+# Local database and run artifacts
+data/*.db
+data/logs/
+data/digests/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store

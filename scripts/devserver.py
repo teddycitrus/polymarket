@@ -41,16 +41,24 @@ class Dispatcher(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # Explicit static whitelist (path -> file under public/) so the path is
+    # never derived from the request -- no directory traversal possible.
+    _STATIC = {
+        "/": ("index.html", "text/html; charset=utf-8"),
+        "/index.html": ("index.html", "text/html; charset=utf-8"),
+        "/app.js": ("app.js", "application/javascript; charset=utf-8"),
+    }
+
     def do_GET(self):  # noqa: N802
-        if self.path in ("/", "/index.html"):
-            with open(os.path.join(ROOT, "index.html"), "rb") as f:
-                self._send(200, f.read(), "text/html; charset=utf-8")
+        if self.path in self._STATIC:
+            name, ctype = self._STATIC[self.path]
+            with open(os.path.join(ROOT, "public", name), "rb") as f:
+                self._send(200, f.read(), ctype)
         elif self.path.startswith("/api/dashboard"):
             try:
-                body = json.dumps(dashboard.build_payload()).encode()
-                self._send(200, body, "application/json")
-            except Exception as e:
-                self._send(500, json.dumps({"error": f"{type(e).__name__}: {e}"}).encode(), "application/json")
+                self._send(200, json.dumps(dashboard.build_payload()).encode(), "application/json")
+            except Exception:
+                self._send(500, b'{"error":"internal error"}', "application/json")
         else:
             self._send(404, b'{"error":"not found"}', "application/json")
 
@@ -59,17 +67,32 @@ class Dispatcher(BaseHTTPRequestHandler):
             self._send(404, b'{"error":"not found"}', "application/json")
             return
         if not forecast._authorized(self.headers):
-            self._send(401, b'{"error":"unauthorized: valid Bearer token required"}', "application/json")
+            self._send(401, b'{"error":"unauthorized"}', "application/json")
             return
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self._send(400, b'{"error":"invalid Content-Length"}', "application/json")
+            return
+        if length > forecast.MAX_BODY_BYTES:
+            self._send(413, b'{"error":"request body too large"}', "application/json")
+            return
         try:
             payload = json.loads(self.rfile.read(length) or b"{}") if length else {}
-            result = forecast.run_batch(
-                int(payload.get("limit", 1)), float(payload.get("low", 0.10)), float(payload.get("high", 0.90))
-            )
-            self._send(200, json.dumps(result).encode(), "application/json")
-        except Exception as e:
-            self._send(500, json.dumps({"error": f"{type(e).__name__}: {e}"}).encode(), "application/json")
+            if not isinstance(payload, dict):
+                raise ValueError("body must be an object")
+            limit = max(1, min(int(payload.get("limit", 1)), forecast.MAX_LIMIT))
+            low = float(payload.get("low", 0.10))
+            high = float(payload.get("high", 0.90))
+            if not (0.0 <= low < high <= 1.0):
+                raise ValueError("bad band")
+        except (ValueError, TypeError, json.JSONDecodeError):
+            self._send(400, b'{"error":"malformed request body"}', "application/json")
+            return
+        try:
+            self._send(200, json.dumps(forecast.run_batch(limit, low, high)).encode(), "application/json")
+        except Exception:
+            self._send(500, b'{"error":"internal error"}', "application/json")
 
     def log_message(self, *args):
         pass

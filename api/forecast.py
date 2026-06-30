@@ -14,7 +14,9 @@ Note: each market takes tens of seconds (web search + 3 ensemble runs), so keep
 
 from __future__ import annotations
 
+import hmac
 import json
+import logging
 import os
 import sys
 from http.server import BaseHTTPRequestHandler
@@ -27,13 +29,29 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 # raised maxDuration in vercel.json (needs Vercel Pro for >60s).
 MAX_LIMIT = int(os.environ.get("FORECAST_MAX_LIMIT", "2"))
 
+# Request body is a tiny JSON object; reject anything larger to bound memory.
+MAX_BODY_BYTES = 4096
+
+# Reject weak tokens so a misconfiguration can't leave a brute-forceable secret.
+MIN_TOKEN_LEN = 24
+
+# Security-event log. Goes to stderr (captured by Vercel). Never logs the token.
+_log = logging.getLogger("api.forecast")
+if not _log.handlers:
+    logging.basicConfig(level=logging.INFO)
+
 
 def _authorized(headers) -> bool:
     expected = os.environ.get("FORECAST_API_TOKEN")
-    if not expected:
-        return False  # fail closed if no token configured
+    if not expected or len(expected) < MIN_TOKEN_LEN:
+        if expected:
+            _log.error("FORECAST_API_TOKEN shorter than %d chars; refusing all requests", MIN_TOKEN_LEN)
+        return False  # fail closed if no/weak token is configured
     auth = headers.get("Authorization", "")
-    return auth.startswith("Bearer ") and auth[7:].strip() == expected
+    if not auth.startswith("Bearer "):
+        return False
+    # Constant-time comparison avoids leaking the token via response timing.
+    return hmac.compare_digest(auth[7:].strip(), expected)
 
 
 def run_batch(limit: int, low: float, high: float) -> dict:
@@ -63,8 +81,9 @@ def run_batch(limit: int, low: float, high: float) -> dict:
                         "forecast_id": out.forecast_id,
                     }
                 )
-            except Exception as e:
-                results.append({"market_id": market.id, "error": f"{type(e).__name__}: {e}"})
+            except Exception:
+                _log.exception("forecast failed for market %s", market.id)
+                results.append({"market_id": market.id, "error": "forecast failed"})
     finally:
         conn.close()
     return {"requested": limit, "selected": len(selected), "forecasts": results}
@@ -73,31 +92,50 @@ def run_batch(limit: int, low: float, high: float) -> dict:
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         if not _authorized(self.headers):
-            self._json(401, {"error": "unauthorized: valid Bearer token required"})
-            return
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(length) or b"{}") if length else {}
-            # Clamp to a small batch: each market is ~2 min, and the function has
-            # a hard duration cap. MAX_LIMIT keeps a single request from timing
-            # out or running up an unexpected Anthropic bill.
-            limit = max(1, min(int(body.get("limit", 1)), MAX_LIMIT))
-            low = float(body.get("low", 0.10))
-            high = float(body.get("high", 0.90))
-        except (ValueError, json.JSONDecodeError) as e:
-            self._json(400, {"error": f"bad request body: {e}"})
+            _log.warning("forecast auth failure")
+            self._json(401, {"error": "unauthorized"})
             return
 
         try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self._json(400, {"error": "invalid Content-Length"})
+            return
+        if length > MAX_BODY_BYTES:
+            self._json(413, {"error": "request body too large"})
+            return
+
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}") if length else {}
+            if not isinstance(body, dict):
+                raise ValueError("body must be a JSON object")
+            # Clamp to a small batch: each market is ~2 min and the function has
+            # a hard duration cap, so this bounds runtime and Anthropic spend.
+            limit = max(1, min(int(body.get("limit", 1)), MAX_LIMIT))
+            low = float(body.get("low", 0.10))
+            high = float(body.get("high", 0.90))
+        except (ValueError, TypeError, json.JSONDecodeError):
+            self._json(400, {"error": "malformed request body"})
+            return
+        if not (0.0 <= low < high <= 1.0):
+            self._json(400, {"error": "require 0 <= low < high <= 1"})
+            return
+
+        _log.info("forecast run requested: limit=%d band=%.2f-%.2f", limit, low, high)
+        try:
             self._json(200, run_batch(limit, low, high))
-        except Exception as e:
-            self._json(500, {"error": f"{type(e).__name__}: {e}"})
+        except Exception:
+            # Log full detail server-side; return an opaque message to the client.
+            _log.exception("forecast run failed")
+            self._json(500, {"error": "internal error"})
 
     def _json(self, status: int, payload: dict):
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 

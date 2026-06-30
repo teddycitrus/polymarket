@@ -10,12 +10,17 @@ GET /api/dashboard -> {
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from http.server import BaseHTTPRequestHandler
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
+
+_log = logging.getLogger("api.dashboard")
+if not _log.handlers:
+    logging.basicConfig(level=logging.INFO)
 
 from score import (  # noqa: E402
     connect,
@@ -77,12 +82,14 @@ class handler(BaseHTTPRequestHandler):
         try:
             body = json.dumps(build_payload()).encode("utf-8")
             status = 200
-        except Exception as e:  # surface a clean JSON error
-            body = json.dumps({"error": f"{type(e).__name__}: {e}"}).encode("utf-8")
+        except Exception:
+            _log.exception("dashboard build failed")
+            body = b'{"error": "internal error"}'
             status = 500
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)

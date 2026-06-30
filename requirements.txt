@@ -1,2 +1,3 @@
-anthropic>=0.84
-libsql-client>=0.3
+# Pinned for reproducible, supply-chain-safe builds. Bump deliberately.
+anthropic==0.84.0
+libsql-client==0.3.1
