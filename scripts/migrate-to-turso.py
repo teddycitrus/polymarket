@@ -22,19 +22,19 @@ from score import DEFAULT_DB, connect_libsql  # noqa: E402
 
 def _copy_markets(src, dst) -> int:
     rows = src.execute(
-        "SELECT id, slug, question, description, event_title, end_date, outcomes, created_at, updated_at FROM markets"
+        "SELECT id, slug, question, description, event_title, event_slug, end_date, outcomes, created_at, updated_at FROM markets"
     ).fetchall()
     for r in rows:
         dst.execute(
             """
-            INSERT INTO markets (id, slug, question, description, event_title, end_date, outcomes, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO markets (id, slug, question, description, event_title, event_slug, end_date, outcomes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 slug=excluded.slug, question=excluded.question, description=excluded.description,
-                event_title=excluded.event_title, end_date=excluded.end_date,
+                event_title=excluded.event_title, event_slug=excluded.event_slug, end_date=excluded.end_date,
                 outcomes=excluded.outcomes, updated_at=excluded.updated_at
             """,
-            (r["id"], r["slug"], r["question"], r["description"], r["event_title"],
+            (r["id"], r["slug"], r["question"], r["description"], r["event_title"], r["event_slug"],
              r["end_date"], r["outcomes"], r["created_at"], r["updated_at"]),
         )
     return len(rows)

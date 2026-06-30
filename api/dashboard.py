@@ -51,7 +51,7 @@ def build_payload() -> dict:
             "markets": [
                 {
                     "question": r["question"],
-                    "slug": r["slug"],
+                    "slug": r["event_slug"] or r["slug"],
                     "model": r["ensemble_prob"],
                     "crowd": r["crowd_price"],
                     "edge": r["edge"],

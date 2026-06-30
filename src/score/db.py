@@ -33,6 +33,7 @@ _SCHEMA = [
         question     TEXT NOT NULL,
         description  TEXT,
         event_title  TEXT,
+        event_slug   TEXT,
         end_date     TEXT,
         outcomes     TEXT,
         created_at   TEXT NOT NULL,
@@ -145,7 +146,16 @@ def connect_libsql(url: str, auth_token: str | None = None) -> Conn:
         client = libsql_client.create_client_sync(url=url)
     conn = Conn(client)
     conn.executescript(_SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: Conn) -> None:
+    """Idempotent additive migrations for databases created by older schemas."""
+    try:
+        conn.execute("ALTER TABLE markets ADD COLUMN event_slug TEXT")
+    except Exception:
+        pass  # column already exists
 
 
 def connect(db_path: str | Path | None = None) -> Conn:
@@ -157,11 +167,11 @@ def upsert_market(conn: Conn, market) -> None:
     now = _now()
     conn.execute(
         """
-        INSERT INTO markets (id, slug, question, description, event_title, end_date, outcomes, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO markets (id, slug, question, description, event_title, event_slug, end_date, outcomes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             slug=excluded.slug, question=excluded.question, description=excluded.description,
-            event_title=excluded.event_title, end_date=excluded.end_date,
+            event_title=excluded.event_title, event_slug=excluded.event_slug, end_date=excluded.end_date,
             outcomes=excluded.outcomes, updated_at=excluded.updated_at
         """,
         (
@@ -170,6 +180,7 @@ def upsert_market(conn: Conn, market) -> None:
             market.question,
             market.description,
             market.event_title,
+            market.event_slug,
             market.end_date,
             json.dumps(market.outcomes),
             now,
@@ -281,6 +292,7 @@ def latest_forecasts(conn: Conn) -> list[Any]:
             f.market_id     AS market_id,
             m.question      AS question,
             m.slug          AS slug,
+            m.event_slug    AS event_slug,
             f.ts            AS ts,
             f.crowd_price   AS crowd_price,
             f.ensemble_prob AS ensemble_prob,

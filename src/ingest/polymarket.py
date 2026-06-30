@@ -55,6 +55,9 @@ class Market:
     # Parent event, if fetched via the events endpoint. Gives the forecaster
     # broader context (e.g. event "Democratic Presidential Nominee 2028").
     event_title: str = ""
+    # Parent event slug. Polymarket pages live at /event/<event_slug>, NOT at
+    # the per-market slug, so this is what links should point at.
+    event_slug: str = ""
 
     @property
     def yes_price(self) -> float | None:
@@ -108,9 +111,16 @@ def _parse_json_list(raw: Any) -> list:
     return []
 
 
-def _to_market(raw: dict, *, event_title: str = "") -> Market:
+def _to_market(raw: dict, *, event_title: str = "", event_slug: str = "") -> Market:
     prices = [float(p) for p in _parse_json_list(raw.get("outcomePrices"))]
     tags = [t.get("label", "") if isinstance(t, dict) else str(t) for t in _parse_json_list(raw.get("tags"))]
+    # When fetched as a standalone market, the parent event (with its slug) is
+    # nested under "events"; prefer an explicitly passed slug from the caller.
+    if not event_slug:
+        events = raw.get("events") or []
+        if events and isinstance(events[0], dict):
+            event_slug = events[0].get("slug", "") or ""
+            event_title = event_title or events[0].get("title", "") or ""
     return Market(
         id=str(raw.get("id", "")),
         question=raw.get("question", ""),
@@ -125,6 +135,7 @@ def _to_market(raw: dict, *, event_title: str = "") -> Market:
         clob_token_ids=[str(t) for t in _parse_json_list(raw.get("clobTokenIds"))],
         uma_status=str(raw.get("umaResolutionStatus") or ""),
         event_title=event_title,
+        event_slug=event_slug,
     )
 
 
@@ -193,10 +204,11 @@ def fetch_political_markets(
     events = fetch_events(tag=tag, closed=closed, limit=max(limit, 100))
     for event in events:
         title = event.get("title", "")
+        slug = event.get("slug", "")
         for raw in event.get("markets", []):
             if raw.get("closed") is True and not closed:
                 continue
-            m = _to_market(raw, event_title=title)
+            m = _to_market(raw, event_title=title, event_slug=slug)
             if m.id and m.is_binary_yes_no and m.volume >= min_volume:
                 seen[m.id] = m
 
